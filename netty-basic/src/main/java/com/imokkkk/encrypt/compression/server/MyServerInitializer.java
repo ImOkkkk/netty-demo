@@ -26,9 +26,6 @@ public class MyServerInitializer extends ChannelInitializer<SocketChannel> {
         // 添加解密（入）Handler
         pipeline.addLast(new MyDecryptHandler());
 
-        // 添加授权（入）Handler
-        pipeline.addLast(new MyAuthHandler());
-
         // 出站事件从尾到头的顺序执行
         // 添加压缩（出）Handler
         pipeline.addLast(ZlibCodecFactory.newZlibEncoder(ZlibWrapper.GZIP));
@@ -37,6 +34,9 @@ public class MyServerInitializer extends ChannelInitializer<SocketChannel> {
         pipeline.addLast(new MyEncryptHandler());
 
         // 业务逻辑Handler放在最后
+        // 添加授权（入）Handler
+        pipeline.addLast(new MyAuthHandler());
+
         // 添加业务逻辑处理Handler
         pipeline.addLast(new MyServerBusinessLogicHandler());
     }

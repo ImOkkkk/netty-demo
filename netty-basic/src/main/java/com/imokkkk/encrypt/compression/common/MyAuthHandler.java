@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.util.AttributeKey;
 import io.netty.util.CharsetUtil;
 import java.io.UnsupportedEncodingException;
 
@@ -25,12 +24,11 @@ public class MyAuthHandler extends ChannelInboundHandlerAdapter {
         // 进行用户名密码验证
         String[] userCredentials = decodeUsernamePassword(msg);
         if (userCredentials != null && checkCredentials(userCredentials[0], userCredentials[1])) {
-            // 验证通过，设置验证标记
-            ctx.channel().attr(AttributeKey.valueOf("auth")).set(true);
+            // 验证通过
             super.channelRead(ctx, msg);
         } else {
             // 验证未通过，返回验证失败消息，关闭连接
-            ctx.writeAndFlush(Unpooled.copiedBuffer("账号或密码错误！", CharsetUtil.UTF_8));
+            ctx.writeAndFlush(Unpooled.copiedBuffer("账号或密码错误！", CharsetUtil.UTF_8)).sync();
             ctx.close();
         }
     }

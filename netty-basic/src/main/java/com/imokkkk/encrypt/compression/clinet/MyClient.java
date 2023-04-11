@@ -30,7 +30,7 @@ public class MyClient {
             ChannelFuture f = b.connect("127.0.0.1", 7777).sync();
 
             ByteBuf buf = f.channel().alloc().buffer();
-            buf.writeBytes("admin:123456".getBytes(Charset.forName("UTF-8")));
+            buf.writeBytes("admin:1234567".getBytes(Charset.forName("UTF-8")));
             f.channel().writeAndFlush(buf);
             f.channel().closeFuture().sync();
         } finally {
