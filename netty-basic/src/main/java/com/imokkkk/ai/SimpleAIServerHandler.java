@@ -28,7 +28,13 @@ public class SimpleAIServerHandler extends SimpleChannelInboundHandler<ByteBuf> 
         log.info("Client：{}", msgStr);
         // 回复消息给客户端
         String response = msgStr.replaceAll("吗", "").replaceAll("\\?", "!").replaceAll("？", "！");
-        ctx.writeAndFlush(Unpooled.copiedBuffer(response, CharsetUtil.UTF_8));
+
+        // NOTE
+        //如果调用Channel或者ChannelPipeline上的这些方法，它们将沿着整个ChannelPipeline进行传播。
+        //而调用位于ChannelHandlerContext上的相同方法，则将从当前所关联的 ChannelHandler 开始，并且只会传播给位于该
+        // ChannelPipeline 中的下一个（入站下一个，出站上一个）能够处理该事件的 ChannelHandler。
+        // ctx.writeAndFlush(Unpooled.copiedBuffer(response, CharsetUtil.UTF_8));
+        ctx.channel().writeAndFlush(Unpooled.copiedBuffer(response, CharsetUtil.UTF_8));
     }
 
     @Override

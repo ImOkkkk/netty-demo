@@ -19,6 +19,7 @@ public class SimpleAIServer {
     private void start() throws InterruptedException {
         //线程组
         NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup();
+        final MessageCountHandler messageCountHandler = new MessageCountHandler();
         try {
             //服务端启动必备
             ServerBootstrap bootstrap = new ServerBootstrap();
@@ -31,7 +32,7 @@ public class SimpleAIServer {
                                 @Override
                                 protected void initChannel(SocketChannel socketChannel)
                                         throws Exception {
-                                    socketChannel.pipeline().addLast(new SimpleAIServerHandler());
+                                    socketChannel.pipeline().addLast(new SimpleAIServerHandler(), messageCountHandler);
                                 }
                             });
             //异步绑定到服务器，sync()会阻塞到完成
