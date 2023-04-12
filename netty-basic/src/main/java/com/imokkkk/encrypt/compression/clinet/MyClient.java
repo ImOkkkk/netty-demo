@@ -6,6 +6,8 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 
 /**
@@ -29,9 +31,17 @@ public class MyClient {
 
             ChannelFuture f = b.connect("127.0.0.1", 7777).sync();
 
-            ByteBuf buf = f.channel().alloc().buffer();
-            buf.writeBytes("admin:1234567".getBytes(Charset.forName("UTF-8")));
-            f.channel().writeAndFlush(buf);
+            // 键盘输入消息，发送至服务端
+            BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+            while (true) {
+                String message = in.readLine();
+                if (message == null) {
+                    break;
+                }
+                ByteBuf buf = f.channel().alloc().buffer();
+                buf.writeBytes(message.getBytes(Charset.forName("UTF-8")));
+                f.channel().writeAndFlush(buf);
+            }
             f.channel().closeFuture().sync();
         } finally {
             group.shutdownGracefully();

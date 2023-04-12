@@ -1,6 +1,5 @@
 package com.imokkkk.encrypt.compression.server;
 
-import com.imokkkk.encrypt.compression.common.MyAuthHandler;
 import com.imokkkk.encrypt.compression.common.MyDecryptHandler;
 import com.imokkkk.encrypt.compression.common.MyEncryptHandler;
 import io.netty.channel.ChannelInitializer;

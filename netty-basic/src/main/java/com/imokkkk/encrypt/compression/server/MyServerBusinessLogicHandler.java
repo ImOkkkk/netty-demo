@@ -26,10 +26,10 @@ public class MyServerBusinessLogicHandler extends SimpleChannelInboundHandler<by
 
         // 处理业务逻辑
         String msgStr = new String(msg, CharsetUtil.UTF_8);
-        log.info("Client：{}", msgStr);
+        log.info("{}！from Client", msgStr);
 
         // 回复客户端
-        ctx.writeAndFlush(Unpooled.copiedBuffer("Hello Netty! from Server", CharsetUtil.UTF_8))
+        ctx.writeAndFlush(Unpooled.copiedBuffer(String.format("%s！from Server", msgStr), CharsetUtil.UTF_8))
                 .sync();
     }
 }

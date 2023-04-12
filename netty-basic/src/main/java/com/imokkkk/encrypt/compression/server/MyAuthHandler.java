@@ -1,4 +1,4 @@
-package com.imokkkk.encrypt.compression.common;
+package com.imokkkk.encrypt.compression.server;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -24,6 +24,10 @@ public class MyAuthHandler extends ChannelInboundHandlerAdapter {
         // 进行用户名密码验证
         String[] userCredentials = decodeUsernamePassword(msg);
         if (userCredentials != null && checkCredentials(userCredentials[0], userCredentials[1])) {
+            ctx.channel().writeAndFlush(Unpooled.copiedBuffer("Welcome！", CharsetUtil.UTF_8)).sync();
+            // 客户端第一次连接登录以后，进行授权检查，检查通过后就可以把这个授权 handler 移除了。
+            // 如果客户端关闭连接下线，下次再连接的时候，就是一个新的连接，授权 handler 依然会被安装到 ChannelPipeline ，依然会进行授权检查。
+            ctx.pipeline().remove(this);
             // 验证通过
             super.channelRead(ctx, msg);
         } else {
