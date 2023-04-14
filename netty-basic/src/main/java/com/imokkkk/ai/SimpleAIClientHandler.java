@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -19,6 +20,7 @@ public class SimpleAIClientHandler extends SimpleChannelInboundHandler<ByteBuf> 
             throws Exception {
         //接收服务端发送的消息
         log.info("Server：{}", msg.toString(CharsetUtil.UTF_8));
+        ReferenceCountUtil.release(msg);
     }
 
     @Override

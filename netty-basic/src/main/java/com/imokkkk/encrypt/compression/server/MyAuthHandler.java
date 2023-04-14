@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import java.io.UnsupportedEncodingException;
 
 /**
@@ -40,8 +41,8 @@ public class MyAuthHandler extends ChannelInboundHandlerAdapter {
     private String[] decodeUsernamePassword(Object msg) throws UnsupportedEncodingException {
         // 将消息转换为字符串，格式为"username:password"
         if (msg instanceof ByteBuf) {
+            ByteBuf buf = (ByteBuf) msg;
             try {
-                ByteBuf buf = (ByteBuf) msg;
                 byte[] bytes = new byte[buf.readableBytes()];
                 buf.readBytes(bytes);
                 String str = new String(bytes, "UTF-8");
@@ -49,6 +50,8 @@ public class MyAuthHandler extends ChannelInboundHandlerAdapter {
             } catch (Exception e) {
                 e.printStackTrace();
                 return null;
+            }finally{
+                ReferenceCountUtil.release(buf);
             }
         } else if (msg instanceof byte[]) {
             String str = new String((byte[]) msg, "UTF-8");
