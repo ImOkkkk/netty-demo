@@ -16,7 +16,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
  */
 public class HttpServer {
 
-    public static final boolean SSL = false;/*是否开启SSL模式*/
+    public static final boolean SSL = true;/*是否开启SSL模式*/
 
     public static final int port = 9999;
 
