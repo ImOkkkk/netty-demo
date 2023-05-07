@@ -21,6 +21,7 @@ public class KryoServerHandler extends SimpleChannelInboundHandler {
         log.info("Client：{}", msg.toString());
 
         // 回复客户端
-        ctx.channel().writeAndFlush(Unpooled.copiedBuffer("Hello!", CharsetUtil.UTF_8));
+        ctx.channel()
+                .writeAndFlush(Unpooled.copiedBuffer("Hello！(from Server)", CharsetUtil.UTF_8));
     }
 }
