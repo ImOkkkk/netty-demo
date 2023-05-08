@@ -12,6 +12,9 @@
     <module>netty-basic</module>
     <module>netty-http</module>
     <module>netty-push</module>
+    <module>websocket</module>
+    <module>websocket/tomcat-websocket</module>
+    <module>websocket/spring-websocket</module>
   </modules>
 
   <properties>
