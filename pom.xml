@@ -15,6 +15,7 @@
     <module>websocket</module>
     <module>websocket/tomcat-websocket</module>
     <module>websocket/spring-websocket</module>
+    <module>netty-call</module>
   </modules>
 
   <properties>
