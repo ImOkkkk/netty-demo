@@ -2,6 +2,7 @@ package com.imokkkk.push;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.web.servlet.ServletComponentScan;
 
 /**
  * @author liuwy
@@ -9,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @since 1.0
  */
 @SpringBootApplication
+@ServletComponentScan
 public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class);
