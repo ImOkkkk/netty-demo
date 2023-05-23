@@ -7,3 +7,17 @@ spring:
 
 server:
   port: 7788
+
+#resilience4j.bulkhead:
+#  instances:
+#    backend-pushToAll:
+#      maxConcurrentCalls: 10
+
+resilience4j.ratelimiter:
+  instances:
+    backend-pushToAll:
+      limitForPeriod: 5
+      limitRefreshPeriod: 1s
+      timeoutDuration: 0
+      registerHealthIndicator: true
+      eventConsumerBufferSize: 100
