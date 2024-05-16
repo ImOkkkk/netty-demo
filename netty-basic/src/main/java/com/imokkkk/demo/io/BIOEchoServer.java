@@ -12,7 +12,7 @@ import java.net.Socket;
  * @since 1.0
  */
 public class BIOEchoServer {
-    //curl 127.0.0.1:8001
+    //telnet 127.0.0.1 8001
     public static void main(String[] args) throws IOException {
         // 启动服务端，绑定8001端口
         ServerSocket serverSocket = new ServerSocket(8001);
