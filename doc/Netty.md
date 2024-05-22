@@ -314,3 +314,346 @@ public class AIOEchoServer {
 BIO中的accept()是完全阻塞当前线程的，NIO中的accept()是通过Accept事件来实现的，而AIO中的accept()是完全异步的，执行了这个方法之后会立即执行后续的代码，不会停留在accept()这一行。
 
 accept()方法的回调方法complete()中处理数据，这里的数据已经经历过数据准备和从内核空间拷贝到用户空间两个阶段了，到达用户空间是真正可用的数据。而不像BIO和NIO那样还要自己去阻塞着把数据从内核空间拷贝到用户空间再使用。
+
+## Netty核心组件
+
+### Channel
+
+linux系统中，一切皆是文件，Channel就是到文件的连接，并可以通过IO操作这些文件。因此，针对不同的文件类型又衍生出不同类型的Channel。
+
+- FileChannel：操作普通文件
+- DatagramChannel：用于UDP协议
+- SocketChannel：用于TCP协议，客户端与服务端之间的Channel
+- ServerSocketChannel：用于TCP协议，仅用于服务端的Channel
+
+> ServerSocketChannel和SocketChannel是专门用于TCP协议中的。
+>
+> ServerSocketChannel是一种服务端的Channel，只能用在服务端，可以看作是到网卡一种Channel，它监听着网卡的某个端口。
+>
+> SocketChannel是一种客户端与服务端之间的Channel，客户端连接到服务器的网卡之后，被服务端的Channel监听到，然后与客户端之间建立一个Channel，这个Channel就是SocketChannel。
+
+**FileChannel**
+
+```java
+public class FileChannelTest {
+    public static void main(String[] args) throws IOException {
+        //从文件获取一个FileChannel
+        FileChannel fileChannel = new RandomAccessFile(
+          "/Users/wyliu/probject/idea/netty-demo/pom.xml", "rw").getChannel();
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        //将FileChanel中的数据读出到buffer中，-1表示读取完毕
+        //buffer默认为写模式
+        //read()方法是相对channel而言，相对于buffer就是写
+        while (fileChannel.read(buffer) != -1){
+            //buffer切换为读模式
+            buffer.flip();
+            //buffer中是否有未读取数据
+            while (buffer.hasRemaining()){
+                //未读数据长度
+                int remain = buffer.remaining();
+                byte[] bytes = new byte[remain];
+                buffer.get(bytes);
+                // 打印出来
+                System.out.println(new String(bytes, StandardCharsets.UTF_8));
+            }
+            //清空buffer，为下一次写入数据做准备
+            //clear()会将buffer再次切换为写模式
+            buffer.clear();
+        }
+    }
+}
+```
+
+### Buffer
+
+存放特定基本类型数据的容器。**特点**：线性，有限的序列，元素是基本类型的数据。**属性**：capacity、limit、position。
+
+**NIO的传输方式与BIO的传输方式的区别**
+
+BIO是面向流的，NIO是面向Channel或者缓冲区的，效率更高。
+
+- 流是单向的，所以分为InputStream和OutputStream，而Channel是双向的，即可读也可写；
+- 流只支持同步读写，而Channel是可以支持异步读写的；
+- 流一般与字节数组或者字符数组配合使用，而Channel一般与Buffer配合使用。
+
+#### 类型
+
+**基本数据类型**：byte、char、boolean、int、double、float、short、long
+
+**Buffer的类型**：ByteBuffer、CharBuffer、IntBuffer、DoubleBuffer、FloatBuffer、ShortBuffer、LongBuffer
+
+堆内存实现个直接内存实现，如HeapByteBuffer和DirectByteBuffer
+
+#### 基本属性
+
+- **capacity**：Buffer的容量，即能够容纳多少数据。
+- **limit**：最大可写或最大可读的数据。
+- **position**：下一次可使用的位置，针对读模式标识下一个可读的位置；针对写模式表示下一个可写的位置。
+
+![image-20240516143516906](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240516143516906.png)
+
+写模式下：capacity=8，limit=8，position=3；读模式下：capacity=8，limit=3，position=0
+
+> position表示的是位置，类似数组的下标，从0开始。而limit和capacity表示大小，类似数组的长度，从1开始。当buffer从写模式切换为读模式，limit变为原position的值，position变为0。
+
+#### API
+
+- 分配一个Buffer：allocate()
+- 写入数据：buf.put()或者channel.read(buf)，read为read to的意思，从channel读出并写入buffer
+- 切换为读模式：buf.flip()
+- 读取数据：buf.read()或者channel.write(buf)，write为write from的意思，从buffer读出并写入channel
+- 重新读取或重新写入：rewind()，重置position为0，limit和capacity保持不变，可以重新读取或写入数据
+- 清空数据：buf.clear()，清空所有数据
+- 压缩数据：buf.compact()，清除已读取的数据，并将未读取的数据往前移
+
+### Selector
+
+SelectableChannel对象的多路复用器，一个Selector可以关联到多个SelectableChannel。
+
+SelectableChannel：和网络编程相关的Channel，如SocketChannel、ServerSocketChannel、DatagramChannel等。
+
+```java
+// 创建一个Selector
+Selector selector = Selector.open();
+// 注册事件到Selector上
+channel.configureBlocking(false);
+SelectionKey key = channel.register(selector, SelectionKey.OP_READ);
+
+// select()只有询问的意思，加上循环才是轮询的意思 
+while(true) {
+selector.select(); // 一直阻塞直到有感兴趣的事件 // selector.selectNow(); // 立即返回，不阻塞
+// selector.select(timeout); // 阻塞一段时间返回
+// ...
+  
+Set<SelectionKey> selectedKeys = selector.selectedKeys(); 
+Iterator<SelectionKey> keyIterator = selectedKeys.iterator(); 
+while(keyIterator.hasNext()) {
+	SelectionKey key = keyIterator.next(); 
+  if(key.isAcceptable()) {
+	// 接受连接事件已就绪
+	} else if (key.isConnectable()) {
+	// 连接事件已就绪
+	} else if (key.isReadable()) {
+	// 读事件已就绪
+	} else if (key.isWritable()) {
+	// 写事件已就绪 }
+	keyIterator.remove(); 
+	}
+}
+```
+
+#### 事件
+
+Channel感兴趣的事情。
+
+- 读事件:SelectionKey.OP_READ = 1 << 0 = 0000 0001
+- 写事件:SelectionKey.OP_WRITE = 1 << 2 = 0000 0100 
+- 连接事件:SelectionKey.OP_CONNECT = 1 << 3 = 0000 1000 
+- 接受连接事件:SelectionKey.OP_ACCEPT = 1 << 4 = 0001 0000
+
+使用"位或"操作监听多种感兴趣的事件：
+
+```java
+int interestSet = SelectionKey.OP_READ | SelectionKey.OP_WRITE;
+```
+
+## Netty整体架构
+
+![image-20240517163300703](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240517163300703.png)
+
+- **Core**：核心层，主要自定义一些基础设施，如事件模型、通信API、缓冲区等。
+- **Transport Service**：传输服务层，主要定义一些通信的底层能力，或者说是传输协议的支持，比如TCP、UDP、HTTP隧道、虚拟机管道等。
+- **Protocol Supprot**：协议支持层，不仅指编码协议，还可以是应用层协议的编解码，如HTTP、WebSocket、SSL、Protobuf、文本协议、二进制协议、压缩协议、大文件传输等，基本上主流的协议都支持。
+
+Netty的核心在于其**可扩展的事件模型**、**通用的通信API**、**基于零拷贝的缓冲区**等。
+
+### 模块设计
+
+![CleanShot 2024-05-19 at 21.15.44](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/CleanShot%202024-05-19%20at%2021.15.44.png)
+
+#### netty-common
+
+主要定义了一些工具类，大概如下：
+
+- 通用的工具类，如`StringUtil`等
+- 对于JDK原生类的增强，如`Future`、`FastThreadLocal`等
+- Netty定义的并发包，如`EventExecutor`等
+- Netty自定义的集合包，主要是对HashMap的增强
+
+其它所有模块都依赖于common包。
+
+#### netty-buffer
+
+Netty自己实现的Buffer，做了很多优化，如池化Buffer、组合Buffer等。
+
+#### netty-resolver
+
+主要做地址解析用的。
+
+#### netty-transport
+
+主要定义了一些服务于传输层的接口和类，比如Channel、ChannelHandler、ChannelHandlerContext、EventLoop等。还实现了对于TCP、UDP通信协议的支持，另外三个包`netty-transport`、`netty-transport-rxtx`、`netty-transport-udt`也是对不同协议的支持。
+
+> TCP：传输控制协议，Java中一般用SocketXxx、ServerSocketXxx表示基于TCP协议通信。
+>
+> UDP：用户数据报文协议，Java中一般用DatagramXxx表示基于UDP协议通信，Datagram，数据报文的意思。
+>
+> SCTP：流控制传输协议。
+>
+> RXTX：串口通信协议。
+>
+> UDT：基于UDP的数据传输协议。
+
+#### netty-handler
+
+定义了各种不同的Handler，满足不同的业务需求，比如，IP过滤、日志、SSL、空闲检测、流量整形等。
+
+#### netty-codec
+
+定义了一系列编码解码器，比如，base64、json、marshalling、protobuf、serializaion、string、xml等，几乎市面上能想到的编码、解码、序列化、反序列化方式，Netty中都支持。它们是一类特殊的ChannelHandler，专门负责编解码的工作。Netty还实现了很多主流的编解码器，如http、http2、mqtt、redis、stomp等等，也可以基于ChannelHandler接口自定义编解码器来解决。
+
+> `netty-codec`与`netty-handler`是两个平齐的模块，并不互相依赖，没有包含和被包含关系，ChannelHandler接口位于`netty-transport`模块中，两者都依赖于`netty-transport`模块。
+
+#### netty-example
+
+包含了各种各样的案例。
+
+## Netty编程十步曲
+
+### 1.声明线程池(必须)
+
+```java
+EventLoopGroup bossGroup = new NioEventLoopGroup(1); 
+EventLoopGroup workerGroup = new NioEventLoopGroup();
+```
+
+**bossGroup**：处理Accept事件
+
+**workerGroup**：处理消息的读写事件
+
+### 2.创建服务端引导类(必须)
+
+```java
+ServerBootstrap serverBootstrap = new ServerBootstrap();
+```
+
+引导类：集成所有配置，引导程序加载。
+
+- 客户端引导类：Bootstrap
+- 服务端引导类：ServerBootstrap
+
+### 3.绑定线程池(必须)
+
+```java
+serverBootstrap.group(bossGroup, workerGroup);
+```
+
+把声明的线程池绑定到ServerBootstrap
+
+### 4.设置ServerSocketChannel类型(必须)
+
+```java
+serverBootstrap.channel(NioServerSocketChannel.class);
+```
+
+- NioServerSocketChannel
+- OioServerSocketChannel
+- EpollServerSocketChannel
+
+### 5.设置参数(可选)
+
+```java
+serverBootstrap.option(ChannelOption.SO_BACKLOG, 100);
+```
+
+一般不需要修改Netty的默认参数
+
+### 6.设置Handler(可选)
+
+```java
+serverBootstrap.handler(new LoggingHandler(LogLevel.INFO))
+```
+
+只能设置一个
+
+### 7.编写并设置子Handler(必须)
+
+```java
+serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() { 
+	@Override
+	public void initChannel(SocketChannel ch) throws Exception {
+		ChannelPipeline p = ch.pipeline();
+		// 可以添加多个子Handler
+		p.addLast(new LoggingHandler(LogLevel.INFO)); 
+    p.addLast(new EchoServerHandler());
+	} 
+});
+```
+
+Netty中的Handler分为两种：
+
+- Inbound
+
+  ```java
+  public class EchoServerHandler extends ChannelInboundHandlerAdapter {
+  	@Override
+  	public void channelRead(ChannelHandlerContext ctx, Object msg) {
+  	// 读取数据后写回客户端 ctx.write(msg);
+  	}
+  	@Override
+  	public void channelReadComplete(ChannelHandlerContext ctx) {
+  		ctx.flush(); 
+  	}
+  	@Override
+  	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+  		cause.printStackTrace(); 
+  		ctx.close();
+  	} 
+  }
+  ```
+
+- Outbound
+
+### 8.绑定端口(必须)
+
+```java
+ChannelFuture f = serverBootstrap.bind(PORT).sync();
+```
+
+绑定端口，并启动服务端程序，sync()会阻塞直到启动完成才执行后面的代码。
+
+### 9.等待服务端端口关闭(必须)
+
+```java
+f.channel().closeFuture().sync();
+```
+
+等待服务端监听端口关闭，sync()会阻塞线程，内部调用的是Object的wait()。
+
+### 10.优雅关闭线程池
+
+```java
+bossGroup.shutdownGracefully(); 
+workerGroup.shutdownGracefully();
+```
+
+在finally中调用shutdownGracefully()。
+
+**为什么需要设置ServerSocketChannel的类型，而不需要设置SocketChannel的类型？**
+
+SocketChannel是ServerSocketChannel在接受连接之后创建出来的，所以，并不需要单独设置它的类型。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
