@@ -315,7 +315,7 @@ BIO中的accept()是完全阻塞当前线程的，NIO中的accept()是通过Acce
 
 accept()方法的回调方法complete()中处理数据，这里的数据已经经历过数据准备和从内核空间拷贝到用户空间两个阶段了，到达用户空间是真正可用的数据。而不像BIO和NIO那样还要自己去阻塞着把数据从内核空间拷贝到用户空间再使用。
 
-## Netty核心组件
+## Java NIO核心组件
 
 ### Channel
 
@@ -642,6 +642,158 @@ workerGroup.shutdownGracefully();
 **为什么需要设置ServerSocketChannel的类型，而不需要设置SocketChannel的类型？**
 
 SocketChannel是ServerSocketChannel在接受连接之后创建出来的，所以，并不需要单独设置它的类型。
+
+## Netty核心组件
+
+### Bootstrap与ServerBootstrap
+
+Netty程序的引导类，主要用于配置各种参数，并启动整个Netty服务。
+
+**Bootstrap**用于客户端引导
+
+**ServerBootstrap**用于服务端引导
+
+### EventLoopGroup
+
+可以理解为一个**线程池**，对于服务端程序，一般绑定两个线程池，一个用于**处理Accept事件**，一个用于**处理读写事件**。
+
+![image-20240524140043574](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240524140043574.png)
+
+- Iterable：迭代器的接口，EventLoopGroup是一个容器，可以通过迭代的方式查看里面的元素。
+- Executor：线程池的顶级接口，提供了execute()方法，用于提交任务到线程池。
+- ExecutorService：扩展自Executor接口，提供了通过submit()方法提交任务的方式，并增加了shutdown()等其它方法。
+- ScheduleExecutorService：扩展自ExecutorService，增加了定时任务执行相关的方法。
+
+Netty
+
+- EventExecutorGroup：扩展自ScheduleExecutorService，并增加了两个功能，一是提供了next()方法获取一个EventExecutor，二是管理这些EventExecuor的生命周期。
+
+- EventLoopGroup：扩展自EventExecutorGroup，并增加或修改了两大功能，一是提供了netx()方法用于获取一个EventLoop，二是提供了注册Channel到事件轮询器中。
+
+- MultithreadEventLoopgroup：抽象类，EventLoopGroup的所有实现类都继承自这个类，可以看作是一种模版。
+
+- **NioEventLoopGroup**：具体实现类，使用NIO形式(多路复用中的select)工作的EventLoopGroup。
+
+  - **EpollEventLoopGroup**：用于Linux平台
+  - KQueueEventLoopGroup：用于MacOS/BSD平台
+
+  > select/epoll/kqueue，是实现IO多路复用的不同形式，select支持的平台比较广泛，epoll和kqueue比select更高效，epoll只支持linux，kqueue只支持MacOS/BSD平台。
+
+### EventLoop
+
+EventLoop可以理解为EventLoopGroup中的工作线程，类似于ThreadPoolExecutor中的Worker，但它并不是一个线程，它里面包含了一个线程，控制着这个线程的生命周期。
+
+- EventEcecutor：扩展自EventLoopGroup，主要增加了判断一个线程是不是在EventLoop中的方法。
+
+- OrderedEventExecutor：扩展自EventExecutor，这是一个标记接口，标志着里面的任务都是按顺序执行的。
+
+- EventLoop：扩展至EventLoopGroup，它将为已注册进来的Channel处理所有的IO事件，另外，它还扩展自OrderedEventExecutor接口，说明里面的任务是按顺序执行的。
+
+- SingleThreadEventLoop：抽象类，EventLoop的所有的实现类都继承自这个类，可以看作是一种模版，单线程处理。
+
+- **NioEventLoop**：具体实现类，绑定到一个Selector上，同时可以注册多个Channel到Selector上，同时，它继承自SingleThreadEventLoop，说明一个Selector对应一个线程。
+
+  - **EpollEventLoop**
+  - KQueueEventLoop
+
+  ![image-20240524155252235](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240524155252235.png)
+
+### ByteBuf
+
+声明了两个指针：读指针readIndex：读取数据，写指针writeIndex：写数据
+
+![image-20240524155627387](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240524155627387.png)
+
+读写指针分离：解决了读写模式切换、position变来变去的问题。
+
+#### 池化和非池化
+
+- **池化**：初始化分配好一块内存作为内存池，每次创建ByteBuf时从这个内存池中分配一块连续的内存给这个ByteBuf使用，使用完毕后再访问内存池。
+- 非池化：对象的内存分配完全交给JVM来管理。
+
+#### Heap和Direct
+
+堆内存和直接内存。
+
+- 堆内存：JVM的堆内存；
+- **直接内存**：独立于JVM之外的内存空间，直接向操作系统申请一块内存。
+
+#### Safe和Unsafe
+
+安全和非安全。
+
+Unsafe：底层使用Java本身的Unsafe来操作底层的数据结构，即**直接利用对象在内存中的指针来操作对象**，所以，比较危险。
+
+- PooledByteBufAllocator：使用池化技术，内部根据平台特性自行决定使用哪种ByteBuf
+- UnpooledByteBufAllocator：不使用池化技术，内部会根据平台特性自行决定使用哪种 ByteBuf
+- PreferHeapByteBufAllocator：更偏向于使用堆内存，即除了显式地指明了使用直接内存的方法都使用堆内存 
+- PreferDirectByteBufAllocator：更偏向于使用直接内存，即除了显式地指明了使用堆内存的方法都使用直接内存
+
+Netty创建最适合当前平台的ByteBuf：**最大努力的使用池化、Unsafe、直接内存的方式创建ByteBuf**
+
+```java
+ByteBufAllocator allocator = ByteBufAllocator.DEFAULT; 
+ByteBuf buffer = allocator.buffer(length); 
+buffer.writeXxx(xxx);
+```
+
+### Channel
+
+对Java原生Channel的**进一步封装**，比如：
+
+- 获取当前连接的状态及配置参数
+- 通过ChannelPipeline来处理IO事件
+- 在Netty中的所有IO操作都是异步的
+- 可继承的Channel体系
+
+协议**Channel的包装类**，和对**协议的扩展**。
+
+### ChannelHandler
+
+核心业务处理接口，用于处理或拦截IO事件，并将其转发到ChannelPipeline中的下一个ChannelHandler，运用的是**责任链**设计模式。
+
+ChannelHandler分为入站和出站两种：ChannelInboundHandler和ChannelOutboundHandler，建议实现它们的抽象类：
+
+- **SimpleChannelInboundHandler**：处理入站事件，不建议直接使用ChannelInboundHandlerAdapter
+- **ChannelOutboundHandlerAdapter**：处理出站事件
+- **ChannelDuplexHandler**：双向的
+
+SimpleChannelInboundHandler相比于ChannelInboundHandlerAdapter可以做**资源的自动释放**。
+
+### ChannelFuture
+
+异步用来获取返回值的对象。通过ChannelFuture，可以查看IO操作是否已完成、是否已成功、是否已取消等。
+
+### ChannelPipeline
+
+ChannelPipeline是ChannelHandler的集合，负责处理和拦截入站和出站的事件和操作，每个Channel都有一个ChannelPipeline与之对应，会自动创建。
+
+更确切的说，ChannelPipeline中存储的是ChannelHandlerContext链，通过这个链**把ChannelHandler连接起来**。
+
+- 一个Channel对应一个ChannelPipeline
+- 一个ChannelPipeline包含一条双向的ChannelHandlerContext链
+- 一个ChannelHandlerContext中包含一个ChannelHandler
+- 一个Channel会绑定一个EventLoop上
+- 一个NioEventLoop维护了一个Selector
+- 一个NioEventLoop相当于一个线程
+
+因此，**ChannelPipeline、ChannelHandlerContext都是线程安全的，因为同一个Channel的事件都会在一个线程中处理完成**。但ChannelHandler不一定，ChannelHandler类似于Spring MVC中的Service层，专门处理业务逻辑的地方，一个ChannelHandler实例可以供多个Channel使用，**不建议把有状态的变量放在ChannelHandler中，而是放在消息本身或ChannelHandlerContext中**。
+
+![image-20240524171041049](https://pic-go-image.oss-cn-beijing.aliyuncs.com/pic/image-20240524171041049.png)
+
+### ChannelOption
+
+保存了拿来即用的参数，如ChannelOption.SO_BACKLOG。
+
+
+
+
+
+
+
+
+
+
 
 
 
